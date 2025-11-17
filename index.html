@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trend Timbers Invoice Manager</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- jsPDF and html2canvas libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Navigation Header -->
+        <nav class="nav-header">
+            <div class="nav-brand">
+                <div class="company-info">
+                    <h1>Trend Timbers</h1>
+                    <span>ABN 69 124 544 412</span>
+                </div>
+            </div>
+            <div class="nav-menu">
+                <button class="nav-btn" data-section="dashboard">Dashboard</button>
+                <button class="nav-btn" data-section="customers">Customers</button>
+                <button class="nav-btn" data-section="quotes">Quotes</button>
+                <button class="nav-btn" data-section="invoices">Invoices</button>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Dashboard Section -->
+            <section id="dashboard" class="content-section">
+                <div class="dashboard-header">
+                    <h2>Dashboard</h2>
+                    <div class="quick-actions">
+                        <button id="newQuoteBtn" class="btn btn--primary">New Quote</button>
+                        <button id="newInvoiceBtn" class="btn btn--primary">New Invoice</button>
+                    </div>
+                </div>
+
+                <div class="dashboard-stats">
+                    <div class="stat-card">
+                        <h3>Total Quotes</h3>
+                        <div id="totalQuotes" class="stat-number">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Total Invoices</h3>
+                        <div id="totalInvoices" class="stat-number">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>Total Customers</h3>
+                        <div id="totalCustomers" class="stat-number">0</div>
+                    </div>
+                </div>
+
+                <div class="dashboard-sections">
+                    <div class="recent-section">
+                        <h3>Recent Quotes</h3>
+                        <div id="recentQuotes" class="recent-list"></div>
+                    </div>
+                    <div class="recent-section">
+                        <h3>Recent Invoices</h3>
+                        <div id="recentInvoices" class="recent-list"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Customers Section -->
+            <section id="customers" class="content-section">
+                <div class="section-header">
+                    <h2>Customers</h2>
+                    <div class="section-actions">
+                        <input type="text" id="customerSearch" class="search-input" placeholder="Search customers...">
+                        <button id="addCustomerBtn" class="btn btn--primary">Add Customer</button>
+                    </div>
+                </div>
+                <div id="customersList" class="data-list"></div>
+            </section>
+
+            <!-- Quotes Section -->
+            <section id="quotes" class="content-section">
+                <div class="section-header">
+                    <h2>Quotes</h2>
+                    <div class="section-actions">
+                        <input type="text" id="quoteSearch" class="search-input" placeholder="Search quotes...">
+                        <button id="addQuoteBtn" class="btn btn--primary">New Quote</button>
+                    </div>
+                </div>
+                <div id="quotesList" class="data-list"></div>
+            </section>
+
+            <!-- Invoices Section -->
+            <section id="invoices" class="content-section">
+                <div class="section-header">
+                    <h2>Invoices</h2>
+                    <div class="section-actions">
+                        <input type="text" id="invoiceSearch" class="search-input" placeholder="Search invoices...">
+                        <button id="addInvoiceBtn" class="btn btn--primary">New Invoice</button>
+                    </div>
+                </div>
+                <div id="invoicesList" class="data-list"></div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Modal -->
+    <div id="modalContainer" class="modal-container hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalTitle">Modal Title</h3>
+                <button id="modalClose" class="modal-close">&times;</button>
+            </div>
+            <div id="modalBody" class="modal-body">
+                <!-- Dynamic content will be inserted here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden PDF container for rendering -->
+    <div id="pdfContainer" style="position: absolute; left: -9999px; width: 794px;"></div>
+
+    <script src="app.js"></script>
+</body>
+</html>
