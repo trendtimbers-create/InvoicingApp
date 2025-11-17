@@ -274,8 +274,13 @@ class InvoiceApp {
         }
 
         container.innerHTML = documents.map(doc => {
-            const customer = this.customers.find(c => c.id === doc.customerId);
-            const customerName = customer ? (customer.company || customer.name) : 'Unknown Customer';
+            let customerName;
+            if (doc.tempCustomer) {
+                customerName = doc.tempCustomer.company || doc.tempCustomer.name;
+            } else {
+                const customer = this.customers.find(c => c.id === doc.customerId);
+                customerName = customer ? (customer.company || customer.name) : 'Unknown Customer';
+            }
 
             return `
                 <div class="data-item" style="cursor: pointer;" onclick="app.editDocument('${type}s', ${doc.id})">
@@ -469,8 +474,13 @@ class InvoiceApp {
         const isQuote = type === 'quotes';
 
         container.innerHTML = documents.map(doc => {
-            const customer = this.customers.find(c => c.id === doc.customerId);
-            const customerName = customer ? (customer.company || customer.name) : 'Unknown Customer';
+            let customerName;
+            if (doc.tempCustomer) {
+                customerName = doc.tempCustomer.company || doc.tempCustomer.name;
+            } else {
+                const customer = this.customers.find(c => c.id === doc.customerId);
+                customerName = customer ? (customer.company || customer.name) : 'Unknown Customer';
+            }
 
             return `
                 <div class="data-item">
@@ -500,8 +510,13 @@ class InvoiceApp {
         }
 
         const filtered = this[type].filter(doc => {
-            const customer = this.customers.find(c => c.id === doc.customerId);
-            const customerName = customer ? `${customer.name} ${customer.company}` : '';
+            let customerName = '';
+            if (doc.tempCustomer) {
+                customerName = `${doc.tempCustomer.name} ${doc.tempCustomer.company}`;
+            } else {
+                const customer = this.customers.find(c => c.id === doc.customerId);
+                customerName = customer ? `${customer.name} ${customer.company}` : '';
+            }
             const searchStr = `${doc.number} ${customerName}`.toLowerCase();
             return searchStr.includes(query.toLowerCase());
         });
@@ -609,14 +624,46 @@ class InvoiceApp {
 
                 <div class="form-group">
                     <label>Customer *</label>
-                    <div class="customer-selection">
-                        <select id="docCustomer" class="customer-select" required>
+                    <div style="margin-bottom: 12px;">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input type="checkbox" id="useTempCustomer" onchange="app.toggleTempCustomer()" ${doc.tempCustomer ? 'checked' : ''}>
+                            <span>Use temporary customer (don't save to database)</span>
+                        </label>
+                    </div>
+                    <div id="customerSelectSection" class="customer-selection" style="${doc.tempCustomer ? 'display: none;' : ''}">
+                        <select id="docCustomer" class="customer-select" ${doc.tempCustomer ? '' : 'required'}>
                             <option value="">Select a customer...</option>
-                            ${this.customers.map(c => 
+                            ${this.customers.map(c =>
                                 `<option value="${c.id}" ${doc.customerId === c.id ? 'selected' : ''}>${c.company || c.name}</option>`
                             ).join('')}
                         </select>
                         <button type="button" class="btn btn--secondary" onclick="app.createCustomerFromDocument()">Add New Customer</button>
+                    </div>
+                    <div id="tempCustomerSection" style="${doc.tempCustomer ? '' : 'display: none;'}">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Customer Name *</label>
+                                <input type="text" id="tempCustomerName" value="${doc.tempCustomer?.name || ''}" ${doc.tempCustomer ? 'required' : ''}>
+                            </div>
+                            <div class="form-group">
+                                <label>Company/Business Name</label>
+                                <input type="text" id="tempCustomerCompany" value="${doc.tempCustomer?.company || ''}">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Email</label>
+                                <input type="email" id="tempCustomerEmail" value="${doc.tempCustomer?.email || ''}">
+                            </div>
+                            <div class="form-group">
+                                <label>Phone</label>
+                                <input type="tel" id="tempCustomerPhone" value="${doc.tempCustomer?.phone || ''}">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Address</label>
+                            <textarea id="tempCustomerAddress" rows="2">${doc.tempCustomer?.address || ''}</textarea>
+                        </div>
                     </div>
                 </div>
 
@@ -691,6 +738,28 @@ class InvoiceApp {
         this.showCustomerForm();
     }
 
+    toggleTempCustomer() {
+        const checkbox = document.getElementById('useTempCustomer');
+        const selectSection = document.getElementById('customerSelectSection');
+        const tempSection = document.getElementById('tempCustomerSection');
+        const docCustomer = document.getElementById('docCustomer');
+        const tempNameInput = document.getElementById('tempCustomerName');
+
+        if (checkbox.checked) {
+            // Show temporary customer fields
+            selectSection.style.display = 'none';
+            tempSection.style.display = 'block';
+            docCustomer.required = false;
+            tempNameInput.required = true;
+        } else {
+            // Show customer selection
+            selectSection.style.display = '';
+            tempSection.style.display = 'none';
+            docCustomer.required = true;
+            tempNameInput.required = false;
+        }
+    }
+
     populateCustomerSelect() {
         const select = document.getElementById('docCustomer');
         if (!select) return;
@@ -709,29 +778,53 @@ class InvoiceApp {
         }
 
         return this.currentDocument.lineItems.map((item, index) => {
+            const isNotesLine = !item.unitPrice || item.unitPrice === 0;
             const lineTotal = item.quantity * item.unitPrice;
-            return `
-                <div class="line-item" data-index="${index}" style="display: flex; gap: 12px; align-items: center; margin-bottom: 12px;">
-                    <input type="text" style="flex: 2; padding: 8px; border: 1px solid var(--color-border); border-radius: 6px;" 
-                           value="${item.description}" 
-                           onchange="app.updateLineItem(${index}, 'description', this.value)" 
-                           placeholder="Description">
-                    <input type="number" style="width: 80px; padding: 8px; border: 1px solid var(--color-border); border-radius: 6px; text-align: center;" 
-                           value="${item.quantity}" min="0" step="0.01"
-                           onchange="app.updateLineItem(${index}, 'quantity', this.value)">
-                    <input type="number" style="width: 100px; padding: 8px; border: 1px solid var(--color-border); border-radius: 6px; text-align: right;" 
-                           value="${item.unitPrice}" min="0" step="0.01"
-                           onchange="app.updateLineItem(${index}, 'unitPrice', this.value)">
-                    <label style="width: 80px; display: flex; align-items: center; justify-content: center; gap: 4px; cursor: pointer;">
-                        <input type="checkbox" ${item.gstIncluded ? 'checked' : ''}
-                               onchange="app.updateLineItem(${index}, 'gstIncluded', this.checked)">
-                        <span style="font-size: 12px;">${item.gstIncluded ? 'inc' : 'exc'}</span>
-                    </label>
-                    <div style="width: 100px; text-align: right; font-weight: 500; padding: 8px;">${this.formatCurrency(lineTotal)}</div>
-                    <button type="button" class="btn btn--small btn--secondary" style="width: 40px; height: 32px; padding: 0; display: flex; align-items: center; justify-content: center;" 
-                            onclick="app.removeLineItem(${index})">&times;</button>
-                </div>
-            `;
+
+            if (isNotesLine) {
+                // Render as notes line (no price fields)
+                return `
+                    <div class="line-item" data-index="${index}" style="display: flex; gap: 12px; align-items: center; margin-bottom: 12px; background: rgba(var(--color-teal-500-rgb), 0.05); padding: 8px; border-radius: 6px;">
+                        <input type="text" style="flex: 1; padding: 8px; border: 1px solid var(--color-border); border-radius: 6px; font-style: italic;"
+                               value="${item.description}"
+                               onchange="app.updateLineItem(${index}, 'description', this.value)"
+                               placeholder="Notes / Additional information">
+                        <span style="width: 80px; text-align: center; color: var(--color-text-secondary); font-size: 12px;">Notes</span>
+                        <input type="number" style="width: 100px; padding: 8px; border: 1px solid var(--color-border); border-radius: 6px; text-align: right;"
+                               value="${item.unitPrice || ''}" min="0" step="0.01"
+                               onchange="app.updateLineItem(${index}, 'unitPrice', this.value)"
+                               placeholder="Add price">
+                        <div style="width: 80px;"></div>
+                        <div style="width: 100px; text-align: right; font-weight: 500; padding: 8px; color: var(--color-text-secondary);">-</div>
+                        <button type="button" class="btn btn--small btn--secondary" style="width: 40px; height: 32px; padding: 0; display: flex; align-items: center; justify-content: center;"
+                                onclick="app.removeLineItem(${index})">&times;</button>
+                    </div>
+                `;
+            } else {
+                // Regular line item with price
+                return `
+                    <div class="line-item" data-index="${index}" style="display: flex; gap: 12px; align-items: center; margin-bottom: 12px;">
+                        <input type="text" style="flex: 2; padding: 8px; border: 1px solid var(--color-border); border-radius: 6px;"
+                               value="${item.description}"
+                               onchange="app.updateLineItem(${index}, 'description', this.value)"
+                               placeholder="Description">
+                        <input type="number" style="width: 80px; padding: 8px; border: 1px solid var(--color-border); border-radius: 6px; text-align: center;"
+                               value="${item.quantity}" min="0" step="0.01"
+                               onchange="app.updateLineItem(${index}, 'quantity', this.value)">
+                        <input type="number" style="width: 100px; padding: 8px; border: 1px solid var(--color-border); border-radius: 6px; text-align: right;"
+                               value="${item.unitPrice}" min="0" step="0.01"
+                               onchange="app.updateLineItem(${index}, 'unitPrice', this.value)">
+                        <label style="width: 80px; display: flex; align-items: center; justify-content: center; gap: 4px; cursor: pointer;">
+                            <input type="checkbox" ${item.gstIncluded ? 'checked' : ''}
+                                   onchange="app.updateLineItem(${index}, 'gstIncluded', this.checked)">
+                            <span style="font-size: 12px;">${item.gstIncluded ? 'inc' : 'exc'}</span>
+                        </label>
+                        <div style="width: 100px; text-align: right; font-weight: 500; padding: 8px;">${this.formatCurrency(lineTotal)}</div>
+                        <button type="button" class="btn btn--small btn--secondary" style="width: 40px; height: 32px; padding: 0; display: flex; align-items: center; justify-content: center;"
+                                onclick="app.removeLineItem(${index})">&times;</button>
+                    </div>
+                `;
+            }
         }).join('');
     }
 
@@ -789,6 +882,11 @@ class InvoiceApp {
         let gstIncludedItems = 0;
 
         this.currentDocument.lineItems.forEach(item => {
+            // Skip notes lines (items with no price)
+            if (!item.unitPrice || item.unitPrice === 0) {
+                return;
+            }
+
             const lineTotal = item.quantity * item.unitPrice;
 
             if (item.gstIncluded) {
@@ -832,12 +930,32 @@ class InvoiceApp {
         // Get form values
         const doc = this.currentDocument;
         doc.date = document.getElementById('docDate').value;
-        doc.customerId = parseInt(document.getElementById('docCustomer').value);
-doc.notes = document.getElementById('docNotes').value;
+        doc.notes = document.getElementById('docNotes').value;
 
-        if (!doc.customerId) {
-            alert('Please select a customer');
-            return;
+        // Handle temporary customer
+        const useTempCustomer = document.getElementById('useTempCustomer')?.checked;
+        if (useTempCustomer) {
+            const tempName = document.getElementById('tempCustomerName')?.value;
+            if (!tempName) {
+                alert('Please enter a customer name');
+                return;
+            }
+            doc.tempCustomer = {
+                name: tempName,
+                company: document.getElementById('tempCustomerCompany')?.value || '',
+                email: document.getElementById('tempCustomerEmail')?.value || '',
+                phone: document.getElementById('tempCustomerPhone')?.value || '',
+                address: document.getElementById('tempCustomerAddress')?.value || ''
+            };
+            doc.customerId = null; // Clear customerId when using temp customer
+        } else {
+            doc.customerId = parseInt(document.getElementById('docCustomer').value);
+            doc.tempCustomer = null; // Clear temp customer when using regular customer
+
+            if (!doc.customerId) {
+                alert('Please select a customer');
+                return;
+            }
         }
 
         // Save to appropriate array
@@ -880,15 +998,35 @@ doc.notes = document.getElementById('docNotes').value;
         const form = document.getElementById('documentForm');
         if (form) {
             this.currentDocument.date = document.getElementById('docDate').value;
-            this.currentDocument.customerId = parseInt(document.getElementById('docCustomer').value) || this.currentDocument.customerId;
-this.currentDocument.notes = document.getElementById('docNotes').value;
+            this.currentDocument.notes = document.getElementById('docNotes').value;
+
+            // Update customer info (temp or regular)
+            const useTempCustomer = document.getElementById('useTempCustomer')?.checked;
+            if (useTempCustomer) {
+                this.currentDocument.tempCustomer = {
+                    name: document.getElementById('tempCustomerName')?.value || '',
+                    company: document.getElementById('tempCustomerCompany')?.value || '',
+                    email: document.getElementById('tempCustomerEmail')?.value || '',
+                    phone: document.getElementById('tempCustomerPhone')?.value || '',
+                    address: document.getElementById('tempCustomerAddress')?.value || ''
+                };
+            } else {
+                this.currentDocument.customerId = parseInt(document.getElementById('docCustomer').value) || this.currentDocument.customerId;
+            }
         }
 
         const doc = this.currentDocument;
-        const customer = this.customers.find(c => c.id === doc.customerId);
+
+        // Get customer info (either from temp customer or customers array)
+        let customer;
+        if (doc.tempCustomer) {
+            customer = doc.tempCustomer;
+        } else {
+            customer = this.customers.find(c => c.id === doc.customerId);
+        }
 
         if (!customer) {
-            alert('Please select a customer before generating PDF');
+            alert('Please select or enter customer information before generating PDF');
             return;
         }
 
@@ -898,17 +1036,29 @@ this.currentDocument.notes = document.getElementById('docNotes').value;
         // Build line items HTML
         let lineItemsHTML = '';
         doc.lineItems.forEach(item => {
-            const lineTotal = item.quantity * item.unitPrice;
-            const gstLabel = item.gstIncluded ? 'inc GST' : 'exc GST';
-            lineItemsHTML += `
-                <tr>
-                    <td>${item.description}</td>
-                    <td style="text-align: center;">${item.quantity}</td>
-                    <td style="text-align: right;">${this.formatCurrency(item.unitPrice)}</td>
-                    <td style="text-align: center;">${gstLabel}</td>
-                    <td style="text-align: right;">${this.formatCurrency(lineTotal)}</td>
-                </tr>
-            `;
+            const isNotesLine = !item.unitPrice || item.unitPrice === 0;
+
+            if (isNotesLine) {
+                // Render notes line - full width description, no price columns
+                lineItemsHTML += `
+                    <tr>
+                        <td colspan="5" style="font-style: italic; color: #666; background: #f9f9f9;">${item.description}</td>
+                    </tr>
+                `;
+            } else {
+                // Regular line item with prices
+                const lineTotal = item.quantity * item.unitPrice;
+                const gstLabel = item.gstIncluded ? 'inc GST' : 'exc GST';
+                lineItemsHTML += `
+                    <tr>
+                        <td>${item.description}</td>
+                        <td style="text-align: center;">${item.quantity}</td>
+                        <td style="text-align: right;">${this.formatCurrency(item.unitPrice)}</td>
+                        <td style="text-align: center;">${gstLabel}</td>
+                        <td style="text-align: right;">${this.formatCurrency(lineTotal)}</td>
+                    </tr>
+                `;
+            }
         });
 
         // Create PDF HTML
@@ -1186,15 +1336,35 @@ this.currentDocument.notes = document.getElementById('docNotes').value;
         const form = document.getElementById('documentForm');
         if (form) {
             this.currentDocument.date = document.getElementById('docDate').value;
-            this.currentDocument.customerId = parseInt(document.getElementById('docCustomer').value) || this.currentDocument.customerId;
-this.currentDocument.notes = document.getElementById('docNotes').value;
+            this.currentDocument.notes = document.getElementById('docNotes').value;
+
+            // Update customer info (temp or regular)
+            const useTempCustomer = document.getElementById('useTempCustomer')?.checked;
+            if (useTempCustomer) {
+                this.currentDocument.tempCustomer = {
+                    name: document.getElementById('tempCustomerName')?.value || '',
+                    company: document.getElementById('tempCustomerCompany')?.value || '',
+                    email: document.getElementById('tempCustomerEmail')?.value || '',
+                    phone: document.getElementById('tempCustomerPhone')?.value || '',
+                    address: document.getElementById('tempCustomerAddress')?.value || ''
+                };
+            } else {
+                this.currentDocument.customerId = parseInt(document.getElementById('docCustomer').value) || this.currentDocument.customerId;
+            }
         }
 
         const doc = this.currentDocument;
-        const customer = this.customers.find(c => c.id === doc.customerId);
+
+        // Get customer info (either from temp customer or customers array)
+        let customer;
+        if (doc.tempCustomer) {
+            customer = doc.tempCustomer;
+        } else {
+            customer = this.customers.find(c => c.id === doc.customerId);
+        }
 
         if (!customer) {
-            alert('Please select a customer before emailing');
+            alert('Please select or enter customer information before emailing');
             return;
         }
 
