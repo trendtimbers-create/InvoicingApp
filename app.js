@@ -630,14 +630,19 @@ class InvoiceApp {
                             <span>Use temporary customer (don't save to database)</span>
                         </label>
                     </div>
-                    <div id="customerSelectSection" class="customer-selection" style="${doc.tempCustomer ? 'display: none;' : ''}">
-                        <select id="docCustomer" class="customer-select" ${doc.tempCustomer ? '' : 'required'}>
-                            <option value="">Select a customer...</option>
-                            ${this.customers.map(c =>
-                                `<option value="${c.id}" ${doc.customerId === c.id ? 'selected' : ''}>${c.company || c.name}</option>`
-                            ).join('')}
-                        </select>
-                        <button type="button" class="btn btn--secondary" onclick="app.createCustomerFromDocument()">Add New Customer</button>
+                    <div id="customerSelectSection" style="${doc.tempCustomer ? 'display: none;' : ''}">
+                        <div style="margin-bottom: 8px;">
+                            <input type="text" id="docCustomerSearch" class="form-control" placeholder="Search customers..." oninput="app.filterDocCustomers(this.value)">
+                        </div>
+                        <div class="customer-selection">
+                            <select id="docCustomer" class="customer-select" size="5" ${doc.tempCustomer ? '' : 'required'}>
+                                <option value="">Select a customer...</option>
+                                ${this.customers.map(c =>
+                                    `<option value="${c.id}" ${doc.customerId === c.id ? 'selected' : ''} data-name="${(c.company || c.name).toLowerCase()}">${c.company || c.name}</option>`
+                                ).join('')}
+                            </select>
+                            <button type="button" class="btn btn--secondary" onclick="app.createCustomerFromDocument()">Add New Customer</button>
+                        </div>
                     </div>
                     <div id="tempCustomerSection" style="${doc.tempCustomer ? '' : 'display: none;'}">
                         <div class="form-row">
@@ -760,6 +765,29 @@ class InvoiceApp {
         }
     }
 
+    filterDocCustomers(query) {
+        const select = document.getElementById('docCustomer');
+        if (!select) return;
+
+        const options = select.querySelectorAll('option');
+        const searchTerm = query.toLowerCase().trim();
+
+        options.forEach(option => {
+            if (option.value === '') {
+                // Always show the "Select a customer..." option
+                option.style.display = '';
+                return;
+            }
+
+            const customerName = option.getAttribute('data-name') || '';
+            if (customerName.includes(searchTerm)) {
+                option.style.display = '';
+            } else {
+                option.style.display = 'none';
+            }
+        });
+    }
+
     populateCustomerSelect() {
         const select = document.getElementById('docCustomer');
         if (!select) return;
@@ -778,53 +806,30 @@ class InvoiceApp {
         }
 
         return this.currentDocument.lineItems.map((item, index) => {
-            const isNotesLine = !item.unitPrice || item.unitPrice === 0;
             const lineTotal = item.quantity * item.unitPrice;
-
-            if (isNotesLine) {
-                // Render as notes line (no price fields)
-                return `
-                    <div class="line-item" data-index="${index}" style="display: flex; gap: 12px; align-items: center; margin-bottom: 12px; background: rgba(var(--color-teal-500-rgb), 0.05); padding: 8px; border-radius: 6px;">
-                        <input type="text" style="flex: 1; padding: 8px; border: 1px solid var(--color-border); border-radius: 6px; font-style: italic;"
-                               value="${item.description}"
-                               onchange="app.updateLineItem(${index}, 'description', this.value)"
-                               placeholder="Notes / Additional information">
-                        <span style="width: 80px; text-align: center; color: var(--color-text-secondary); font-size: 12px;">Notes</span>
-                        <input type="number" style="width: 100px; padding: 8px; border: 1px solid var(--color-border); border-radius: 6px; text-align: right;"
-                               value="${item.unitPrice || ''}" min="0" step="0.01"
-                               onchange="app.updateLineItem(${index}, 'unitPrice', this.value)"
-                               placeholder="Add price">
-                        <div style="width: 80px;"></div>
-                        <div style="width: 100px; text-align: right; font-weight: 500; padding: 8px; color: var(--color-text-secondary);">-</div>
-                        <button type="button" class="btn btn--small btn--secondary" style="width: 40px; height: 32px; padding: 0; display: flex; align-items: center; justify-content: center;"
-                                onclick="app.removeLineItem(${index})">&times;</button>
-                    </div>
-                `;
-            } else {
-                // Regular line item with price
-                return `
-                    <div class="line-item" data-index="${index}" style="display: flex; gap: 12px; align-items: center; margin-bottom: 12px;">
-                        <input type="text" style="flex: 2; padding: 8px; border: 1px solid var(--color-border); border-radius: 6px;"
-                               value="${item.description}"
-                               onchange="app.updateLineItem(${index}, 'description', this.value)"
-                               placeholder="Description">
-                        <input type="number" style="width: 80px; padding: 8px; border: 1px solid var(--color-border); border-radius: 6px; text-align: center;"
-                               value="${item.quantity}" min="0" step="0.01"
-                               onchange="app.updateLineItem(${index}, 'quantity', this.value)">
-                        <input type="number" style="width: 100px; padding: 8px; border: 1px solid var(--color-border); border-radius: 6px; text-align: right;"
-                               value="${item.unitPrice}" min="0" step="0.01"
-                               onchange="app.updateLineItem(${index}, 'unitPrice', this.value)">
-                        <label style="width: 80px; display: flex; align-items: center; justify-content: center; gap: 4px; cursor: pointer;">
-                            <input type="checkbox" ${item.gstIncluded ? 'checked' : ''}
-                                   onchange="app.updateLineItem(${index}, 'gstIncluded', this.checked)">
-                            <span style="font-size: 12px;">${item.gstIncluded ? 'inc' : 'exc'}</span>
-                        </label>
-                        <div style="width: 100px; text-align: right; font-weight: 500; padding: 8px;">${this.formatCurrency(lineTotal)}</div>
-                        <button type="button" class="btn btn--small btn--secondary" style="width: 40px; height: 32px; padding: 0; display: flex; align-items: center; justify-content: center;"
-                                onclick="app.removeLineItem(${index})">&times;</button>
-                    </div>
-                `;
-            }
+            return `
+                <div class="line-item" data-index="${index}" style="display: flex; gap: 12px; align-items: center; margin-bottom: 12px;">
+                    <input type="text" style="flex: 2; padding: 8px; border: 1px solid var(--color-border); border-radius: 6px;"
+                           value="${item.description}"
+                           onchange="app.updateLineItem(${index}, 'description', this.value)"
+                           placeholder="Description">
+                    <input type="number" style="width: 80px; padding: 8px; border: 1px solid var(--color-border); border-radius: 6px; text-align: center;"
+                           value="${item.quantity}" min="0" step="0.01"
+                           onchange="app.updateLineItem(${index}, 'quantity', this.value)">
+                    <input type="number" style="width: 100px; padding: 8px; border: 1px solid var(--color-border); border-radius: 6px; text-align: right;"
+                           value="${item.unitPrice}" min="0" step="0.01"
+                           onchange="app.updateLineItem(${index}, 'unitPrice', this.value)"
+                           placeholder="0 = notes">
+                    <label style="width: 80px; display: flex; align-items: center; justify-content: center; gap: 4px; cursor: pointer;">
+                        <input type="checkbox" ${item.gstIncluded ? 'checked' : ''}
+                               onchange="app.updateLineItem(${index}, 'gstIncluded', this.checked)">
+                        <span style="font-size: 12px;">${item.gstIncluded ? 'inc' : 'exc'}</span>
+                    </label>
+                    <div style="width: 100px; text-align: right; font-weight: 500; padding: 8px;">${item.unitPrice ? this.formatCurrency(lineTotal) : '-'}</div>
+                    <button type="button" class="btn btn--small btn--secondary" style="width: 40px; height: 32px; padding: 0; display: flex; align-items: center; justify-content: center;"
+                            onclick="app.removeLineItem(${index})">&times;</button>
+                </div>
+            `;
         }).join('');
     }
 
